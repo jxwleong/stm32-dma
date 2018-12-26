@@ -49,6 +49,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim2;
+
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 TIM_Handle_Type tim2;
@@ -57,7 +58,9 @@ TIM_Handle_Type tim2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM2_Init(void);
+static void MX_TIM2_Init(void);                                    
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -66,7 +69,13 @@ static void MX_TIM2_Init(void);
 
 /* USER CODE BEGIN 0 */
 
-
+void flashWrite(uint32_t *address, uint32_t data){
+	HAL_FLASH_Unlock();
+	FLASH_Erase_Sector(FLASH_SECTOR_1, FLASH_VOLTAGE_RANGE_3);  /*!< Device operating range: 2.6V to 3.6V  */
+	*address = data;
+	uint32_t temp = *address;
+	HAL_FLASH_Lock();
+}
 
 /* USER CODE END 0 */
 
@@ -98,16 +107,8 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-
   MX_GPIO_Init();
-
-
-  //MX_TIM2_Init();
-
-  /*
-  Timer2init(&tim2);
-  TIM_BASE_START(&tim2);
-  */
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   //*********custom functions (timer)***************
@@ -116,17 +117,13 @@ int main(void)
   // Initialise the timer2
   RESET_TIMER_2_CLK_GATING();
   UNRESET_TIMER_2_CLK_GATING();
+  TIM_ENABLE_DMA(timer2, TIM_CC3DE);
 
-
-
-
-
-
-  timer2-> arr = 51429;
-  timer2-> psc = 35;
+  timer2-> arr = 60000;
+  timer2-> psc = 30;
   timer2-> cnt = 0;
 
-  timerInitOutputCompare(timer2, 3, OC_ACTIV_ON_MATCH, OC_NORMAL_POLARITY, 51249/2);
+  timerInitOutputCompare(timer2, 3, OC_PWM1, OC_NORMAL_POLARITY, 3000);
   TIM_COUNTER_ENABLE(timer2);
   TIM_CAPTURE_COMPARE_ENABLE(timer2, 3);
 
@@ -141,7 +138,7 @@ int main(void)
   nvicDisableInterrupt(12);
 
 
-  int n = nvicIsInterruptActive(45);
+  //int n = nvicIsInterruptActive(45);
 
   //***********HAL functions*************************
   //HAL_TIM_Base_Start(&htim2);
@@ -157,18 +154,25 @@ int main(void)
   UNRESET_DMA1_CLK_GATING();
   ENABLE_DMA1_CLK_GATING();
   dmaStreamConfigure(dma1, DMA_STREAM1, 						  \
-		  	  	  	  DMA_MBURST16 | DMA_PINCOSF| DMA_MSIZE32 |   \
-					  DMA_CH1SEL | DMA_PINC | DMA_CIRC);
-  dmaStreamConfigureOnly(dma1, DMA_STREAM1, DMA_MBURST_MASK, DMA_MBURST8);
-  DMA_STREAM_ENABLE(dma1, DMA_STREAM1);
-  DMA_INTERRUPT_ENABLE(dma1, DMA_STREAM1, DMA_TCIE| DMA_DMEIE );
-  DMA_INTERRUPT_DISABLE(dma1, DMA_STREAM1, DMA_TCIE| DMA_DMEIE );
+		  	  	  	  DMA_PSIZE32 | DMA_MSIZE32 |  DMA_DIR_MtP|   \
+					  DMA_CH1SEL | DMA_MINC | DMA_CIRC);
 
-  dmaStreamConfigure(dma1, DMA_STREAM3, 						  \
-		  	  	  	  DMA_MBURST16 | DMA_PINCOSF| DMA_MSIZE32 | DMA_PBURSTS | \
-					  DMA_CH3SEL | DMA_DIR_MtM | DMA_HTIE);
-  DMA_STREAM_ENABLE(dma1, DMA_STREAM3);
-  DMA_STREAM_ENABLE(dma1, DMA_STREAM4);
+  dma1->S[DMA_STREAM1].NDTR = 3000;
+  dma1->S[DMA_STREAM1].PAR = (uint32_t *)0x40000000 + 0x3C;	// address of CCR3
+  dma1->S[DMA_STREAM1].M0AR = (uint32_t *)0x08004000; // address of sector 1 of flash
+
+
+  DMA_STREAM_ENABLE(dma1, DMA_STREAM1);
+
+  uint32_t *flashMem = (uint32_t *)0x08004000;
+
+  for(int i = 0; i < 60; i++){
+	  for(int j = 0; j < 50; j++){
+		  flashWrite(flashMem, 3000 + (50 * i));
+		  flashMem++;
+	  }
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -280,7 +284,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = TIMER2_DIVIDER;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = TIMER2_ARR;
+  htim2.Init.Period = TIMER2_AR;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
@@ -306,13 +310,15 @@ static void MX_TIM2_Init(void)
   }
 
   sConfigOC.OCMode = TIM_OCMODE_INACTIVE;
-  sConfigOC.Pulse = ( TIMER2_ARR / 3 );
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 

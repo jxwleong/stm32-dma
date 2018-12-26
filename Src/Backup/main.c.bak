@@ -41,7 +41,10 @@
 #include "stm32f4xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "Timer.h"
+#include "RCC.h"
+#include "NVIC.h"
+#include "DMA.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -49,13 +52,15 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
+TIM_Handle_Type tim2;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM2_Init(void);
+static void MX_TIM2_Init(void);                                    
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +68,14 @@ static void MX_TIM2_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+
+void flashWrite(uint32_t *address, uint32_t data){
+	HAL_FLASH_Unlock();
+	FLASH_Erase_Sector(FLASH_SECTOR_1, FLASH_VOLTAGE_RANGE_3);  /*!< Device operating range: 2.6V to 3.6V  */
+	*address = data;
+	uint32_t temp = *address;
+	HAL_FLASH_Lock();
+}
 
 /* USER CODE END 0 */
 
@@ -97,11 +110,71 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_3);
 
-  HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, 0);
-  HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, 0);
+  //*********custom functions (timer)***************
+
+  ENABLE_TIMER_2_CLK_GATING();
+  // Initialise the timer2
+  RESET_TIMER_2_CLK_GATING();
+  UNRESET_TIMER_2_CLK_GATING();
+
+
+  timer2-> arr = 60000;
+  timer2-> psc = 29;
+  timer2-> cnt = 0;
+
+  timerInitOutputCompare(timer2, 3, OC_ACTIV_ON_MATCH, OC_NORMAL_POLARITY, 60000);
+  TIM_COUNTER_ENABLE(timer2);
+  TIM_CAPTURE_COMPARE_ENABLE(timer2, 3);
+
+  nvicEnableInterrupt(28);
+  TIM_INTERRUPT_ENABLE(timer2, TIM_UIE);
+
+
+  nvicDisableInterrupt(45);
+
+
+  nvicEnableInterrupt(12);
+  nvicDisableInterrupt(12);
+
+
+  //int n = nvicIsInterruptActive(45);
+
+  //***********HAL functions*************************
+  //HAL_TIM_Base_Start(&htim2);
+  //HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_3);
+
+  //HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, 0);
+  //HAL_GPIO_WritePin(LED4_GPIO_Port, LED4_Pin, 0);
+
+  //__HAL_TIM_SET_COUNTER(&htim2, 0);
+  //__HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_UPDATE);
+  //__HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_CC3);
+
+  UNRESET_DMA1_CLK_GATING();
+  ENABLE_DMA1_CLK_GATING();
+  dmaStreamConfigure(dma1, DMA_STREAM1, 						  \
+		  	  	  	  DMA_PSIZE32 | DMA_MSIZE32 |  DMA_DIR_MtP|   \
+					  DMA_CH1SEL | DMA_MINC | DMA_CIRC);
+
+  dma1->S[DMA_STREAM1].NDTR = 3000;
+  dma1->S[DMA_STREAM1].PAR = (uint32_t *)0x40000000 + 0x3C;	// address of CCR3
+  dma1->S[DMA_STREAM1].M0AR = (uint32_t *)0x08004000; // address of sector 1 of flash
+
+
+  DMA_STREAM_ENABLE(dma1, DMA_STREAM1);
+
+  uint32_t *flashMem = (uint32_t *)0x08004000;
+
+  for(int i = 0; i < 60; i++){
+	  flashWrite(flashMem, 3000 + (50 * i));
+	  flashMem++;
+	  for(int j = 0; j < 50; j++){
+
+	  }
+
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -109,17 +182,25 @@ int main(void)
   while (1)
   {
 
-	  if(__HAL_TIM_GET_FLAG(&htim2,TIM_FLAG_UPDATE)){
-		  __HAL_TIM_CLEAR_FLAG(&htim2,TIM_IT_UPDATE);
-		  HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
-	  }
+	 // if(__HAL_TIM_GET_FLAG(&htim2,TIM_FLAG_UPDATE)){
+		//  __HAL_TIM_CLEAR_FLAG(&htim2,TIM_IT_UPDATE);
+	//	  HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
+	 // }
 
+//  if(__HAL_TIM_GET_FLAG(&htim2,TIM_FLAG_CC3)){
+	//	  __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC3);
+	//	  HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+	//  }
 
-	  if(__HAL_TIM_GET_FLAG(&htim2,TIM_FLAG_CC3)){
-		  __HAL_TIM_CLEAR_FLAG(&htim2,TIM_FLAG_CC3);
+	/*  if(TIM_GET_FLAG(timer2,TIM_FLAG_UPDATE)){
+		  TIM_CLEAR_FLAG(timer2,TIM_IT_UPDATE);
+		HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
+		  }
+
+	  if(TIM_GET_FLAG(timer2,TIM_FLAG_CC3)){
+		  TIM_CLEAR_FLAG(timer2,TIM_FLAG_CC3);
 		  HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-	  }
-
+		  }*/
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
@@ -230,14 +311,16 @@ static void MX_TIM2_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  sConfigOC.OCMode = TIM_OCMODE_ACTIVE;
-  sConfigOC.Pulse = ( TIMER2_ARR / 3 );
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCMode = TIM_OCMODE_INACTIVE;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -271,6 +354,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 
 /* USER CODE END 4 */
 

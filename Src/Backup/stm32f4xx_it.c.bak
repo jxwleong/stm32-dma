@@ -36,7 +36,7 @@
 #include "stm32f4xx_it.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "Timer.h"
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -192,6 +192,11 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+void TIM2_IRQHandler(void){
 
+	HAL_GPIO_TogglePin(LED4_GPIO_Port, LED4_Pin);
+	TIM_CLEAR_FLAG(timer2,TIM_UIF);
+	TIM_CLEAR_FLAG(timer2,TIMER_CHANNEL_3);
+}
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
