@@ -5,6 +5,7 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../Src/DMA.c \
+../Src/GPIO.c \
 ../Src/NVIC.c \
 ../Src/RCC.c \
 ../Src/Timer.c \
@@ -15,6 +16,7 @@ C_SRCS += \
 
 OBJS += \
 ./Src/DMA.o \
+./Src/GPIO.o \
 ./Src/NVIC.o \
 ./Src/RCC.o \
 ./Src/Timer.o \
@@ -25,6 +27,7 @@ OBJS += \
 
 C_DEPS += \
 ./Src/DMA.d \
+./Src/GPIO.d \
 ./Src/NVIC.d \
 ./Src/RCC.d \
 ./Src/Timer.d \

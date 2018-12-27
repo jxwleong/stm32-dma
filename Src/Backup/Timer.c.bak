@@ -29,14 +29,14 @@ void Timer2init(TIM_Handle_Type *timer){
  **/
 void timerOcSetMode(TimerRegs *tim, int channel, int mode){
 	int numOfShifts = 0;
-	TimerRegister *ccmr = tim->ccmr1;
+	TimerRegister *ccmr = &(tim->ccmr1);
 
 	if(((channel - 1) & 1) == 1)				// channel 1 = 00
 		numOfShifts = 8;						// channel 2 = 01 \ if & with 1 = 1
 	if(channel > 2){
 		ccmr++;
 	}
-	*ccmr = mode << (numOfShifts + 4 );
+	*ccmr = mode << numOfShifts;
 }
 
 /**

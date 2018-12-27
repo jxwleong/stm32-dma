@@ -48,8 +48,8 @@
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
-#define TIMER2_DIVIDER 2747
-#define TIMER2_ARR (65536/4)
+#define TIMER2_DIVIDER 30
+#define TIMER2_AR 60000
 
 #define LED3_Pin GPIO_PIN_13
 #define LED3_GPIO_Port GPIOG

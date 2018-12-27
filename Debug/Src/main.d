@@ -30,7 +30,8 @@ Src/main.o: ../Src/main.c \
  C:/Users/user/Desktop/STM32_Timer-master/Inc/Timer.h \
  C:/Users/user/Desktop/STM32_Timer-master/Inc/RCC.h \
  C:/Users/user/Desktop/STM32_Timer-master/Inc/NVIC.h \
- C:/Users/user/Desktop/STM32_Timer-master/Inc/DMA.h
+ C:/Users/user/Desktop/STM32_Timer-master/Inc/DMA.h \
+ C:/Users/user/Desktop/STM32_Timer-master/Inc/GPIO.h
 
 C:/Users/user/Desktop/STM32_Timer-master/Inc/main.h:
 
@@ -95,3 +96,5 @@ C:/Users/user/Desktop/STM32_Timer-master/Inc/RCC.h:
 C:/Users/user/Desktop/STM32_Timer-master/Inc/NVIC.h:
 
 C:/Users/user/Desktop/STM32_Timer-master/Inc/DMA.h:
+
+C:/Users/user/Desktop/STM32_Timer-master/Inc/GPIO.h:

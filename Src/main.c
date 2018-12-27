@@ -45,10 +45,12 @@
 #include "RCC.h"
 #include "NVIC.h"
 #include "DMA.h"
+#include "GPIO.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -58,8 +60,10 @@ TIM_Handle_Type tim2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM2_Init(void);                                    
+static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);                                    
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
                                 
 
 /* USER CODE BEGIN PFP */
@@ -70,13 +74,71 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 /* USER CODE BEGIN 0 */
 
 void flashWrite(uint32_t *address, uint32_t data){
-	HAL_FLASH_Unlock();
+	//HAL_FLASH_Unlock();
 	FLASH_Erase_Sector(FLASH_SECTOR_1, FLASH_VOLTAGE_RANGE_3);  /*!< Device operating range: 2.6V to 3.6V  */
 	*address = data;
-	uint32_t temp = *address;
-	HAL_FLASH_Lock();
+	//HAL_FLASH_Lock();
 }
 
+// write ccr3 value to sector 1 of flash 0x08004000
+void flashWriteCCR3(void){
+	  uint32_t *flashMem = (uint32_t *)0x08004000;
+
+	  for(int i = 0; i < 60; i++){
+		  for(int j = 0; j < 50; j++){
+			  flashWrite(flashMem, 6000 + (50 * i));
+			  flashMem++;
+		  }
+	  }
+}
+
+void fillInMem(uint32_t Mem[]){
+	  for(int i = 0; i < 60; i++){
+		  for(int j = 0; j < 50; j++){
+			  Mem[j + (50 * i)] = (1500 + (50 * i));
+		  }
+	  }
+}
+
+void demoTimer3PMW(void){
+	uint32_t Mem[3000] = {0};
+	fillInMem(Mem);
+
+	GPIOConfigurePin(GPIOB, GPIOPin4, GPIO_ALT_FUNC|GPIO_PUSH_PULL|GPIO_VERY_HI_SPEED|GPIO_NO_PULL);
+	GPIOConfigureAltFunc(GPIOB, GPIOPin4, AF2);
+
+	RESET_TIMER_3_CLK_GATING();
+	UNRESET_TIMER_3_CLK_GATING();
+	ENABLE_TIMER_3_CLK_GATING();
+
+	timer3-> arr = 60000;
+	timer3-> psc = 29;
+	timer3-> cnt = 0;
+
+	timerInitOutputCompare(timer3, 1, OC_PWM1 | CC_PRELOAD_EN , OC_NORMAL_POLARITY, 1500);
+
+	UNRESET_DMA1_CLK_GATING();
+	ENABLE_DMA1_CLK_GATING();
+	dmaStreamConfigure(dma1, DMA_STREAM4, 						  \
+		 		  	  	  	 DMA_PSIZE32 | DMA_MSIZE32 |  DMA_DIR_MtP|   \
+		 					 DMA_CH5SEL | DMA_MINC | DMA_CIRC);
+
+	dma1->S[DMA_STREAM4].NDTR = 3000;
+	dma1->S[DMA_STREAM4].PAR = (uint32_t *)(0x40000400 + 0x34);	// address of CCR1
+	dma1->S[DMA_STREAM4].M0AR = (uint32_t *)(&Mem); // address of sector 1 of flash
+
+
+	// Enable dma1 stream1
+	DMA_STREAM_ENABLE(dma1, DMA_STREAM4);
+	// Enable timer 3 dma
+	TIM_ENABLE_DMA(timer3, TIM_CC1DE);
+	// Enable timer3 capture compare channel 1
+	TIM_CAPTURE_COMPARE_ENABLE(timer3, 1);
+	// Enable counter timer
+	TIM_COUNTER_ENABLE(timer3);
+	// Initialise the timer2
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -108,24 +170,15 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM2_Init();
+  //MX_TIM2_Init();
+  //MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   //*********custom functions (timer)***************
 
-  ENABLE_TIMER_2_CLK_GATING();
-  // Initialise the timer2
-  RESET_TIMER_2_CLK_GATING();
-  UNRESET_TIMER_2_CLK_GATING();
-  TIM_ENABLE_DMA(timer2, TIM_CC3DE);
 
-  timer2-> arr = 60000;
-  timer2-> psc = 30;
-  timer2-> cnt = 0;
 
-  timerInitOutputCompare(timer2, 3, OC_PWM1, OC_NORMAL_POLARITY, 3000);
-  TIM_COUNTER_ENABLE(timer2);
-  TIM_CAPTURE_COMPARE_ENABLE(timer2, 3);
+
 
   nvicEnableInterrupt(28);
   TIM_INTERRUPT_ENABLE(timer2, TIM_UIE);
@@ -136,6 +189,7 @@ int main(void)
 
   nvicEnableInterrupt(12);
   nvicDisableInterrupt(12);
+
 
 
   //int n = nvicIsInterruptActive(45);
@@ -150,28 +204,8 @@ int main(void)
   //__HAL_TIM_SET_COUNTER(&htim2, 0);
   //__HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_UPDATE);
   //__HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_CC3);
+  demoTimer3PMW();// configure ccds = 1 , cr2, arr
 
-  UNRESET_DMA1_CLK_GATING();
-  ENABLE_DMA1_CLK_GATING();
-  dmaStreamConfigure(dma1, DMA_STREAM1, 						  \
-		  	  	  	  DMA_PSIZE32 | DMA_MSIZE32 |  DMA_DIR_MtP|   \
-					  DMA_CH1SEL | DMA_MINC | DMA_CIRC);
-
-  dma1->S[DMA_STREAM1].NDTR = 3000;
-  dma1->S[DMA_STREAM1].PAR = (uint32_t *)0x40000000 + 0x3C;	// address of CCR3
-  dma1->S[DMA_STREAM1].M0AR = (uint32_t *)0x08004000; // address of sector 1 of flash
-
-
-  DMA_STREAM_ENABLE(dma1, DMA_STREAM1);
-
-  uint32_t *flashMem = (uint32_t *)0x08004000;
-
-  for(int i = 0; i < 60; i++){
-	  for(int j = 0; j < 50; j++){
-		  flashWrite(flashMem, 3000 + (50 * i));
-		  flashMem++;
-	  }
-  }
 
   /* USER CODE END 2 */
 
@@ -179,6 +213,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+
 
 	 // if(__HAL_TIM_GET_FLAG(&htim2,TIM_FLAG_UPDATE)){
 		//  __HAL_TIM_CLEAR_FLAG(&htim2,TIM_IT_UPDATE);
@@ -322,6 +358,55 @@ static void MX_TIM2_Init(void)
 
 }
 
+/* TIM3 init function */
+static void MX_TIM3_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_OC_InitTypeDef sConfigOC;
+
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 0;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_OC_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
 /** Configure pins as 
         * Analog 
         * Input 
@@ -338,6 +423,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOG, LED3_Pin|LED4_Pin, GPIO_PIN_RESET);
