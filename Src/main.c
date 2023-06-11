@@ -100,12 +100,32 @@ void fillInMem(uint32_t Mem[]){
 	  }
 }
 
+/*
+Memory Preparation: The fillInMem(Mem); function call is used to populate a section of memory (Mem[]) with specific values. This data will later be transferred via DMA to the Timer's Compare Register (CCR).
+
+GPIO Configuration: GPIOConfigurePin and GPIOConfigureAltFunc configure the GPIOB Pin 4 to be used as a PWM output (Alt Function 2 corresponds to the Timer's output).
+
+Timer Configuration: Several lines of code configure Timer3 for PWM output. Timer3's Auto-Reload Register (ARR), Prescaler (PSC), and Counter (CNT) are set, then Output Compare Channel 1 is initialized in PWM mode with a preload value.
+
+DMA Configuration: DMA1 is configured to transfer data from memory to a peripheral (Timer3's CCR1) with dmaStreamConfigure. DMA settings include word-sized data, memory-to-peripheral direction, the channel selection for the stream, and memory increment and circular mode. In circular mode, when the memory data has all been transferred, DMA will automatically wrap back to the start of the buffer, making it ideal for applications like waveform generation.
+
+DMA Stream Setting: It sets the number of data items to be transferred (NDTR), the peripheral address (PAR - in this case, Timer3's CCR1), and the memory address (M0AR - the memory buffer Mem).
+
+DMA Activation: It then enables the DMA stream and configures Timer3 to use DMA for Capture/Compare 1 event. When the Timer hits the compare match event, it will trigger the DMA to transfer a word of data from memory to the CCR1.
+
+Timer Activation: It finally enables the Timer's Capture/Compare for Channel 1 and the Timer's counter.
+
+Once the function is called, the PWM signal generated on the GPIO pin will vary in duty cycle according to the data values filled into Mem[]. This data is continually fed from memory to the Timer's CCR via DMA, without the need for CPU intervention.
+
+This demo hence shows the use of DMA for generating a complex PWM waveform, illustrating how CPU resources can be saved in a real-time application.
+
+*/
 void demoTimer3PMW(void){
 	uint32_t Mem[3000] = {0};
 	fillInMem(Mem);
 
 	GPIOConfigurePin(GPIOB, GPIOPin4, GPIO_ALT_FUNC|GPIO_PUSH_PULL|GPIO_VERY_HI_SPEED|GPIO_NO_PULL);
-	GPIOConfigureAltFunc(GPIOB, GPIOPin4, AF2);
+	GPIOConfigureAltFunc(GPIOB, GPIOPin4, AF2);  
 
 	RESET_TIMER_3_CLK_GATING();
 	UNRESET_TIMER_3_CLK_GATING();
